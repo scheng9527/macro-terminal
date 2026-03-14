@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-14 16:53:05",
+  "timestamp": "2026-03-14 21:23:23",
   "date": "2026-03-14",
   "raw_data": {
     "metrics": {
@@ -10,12 +10,8 @@
     },
     "polymarket": [
       {
-        "title": "Club Puebla vs. Club León FC",
-        "top_outcome": "0"
-      },
-      {
-        "title": "FC Juárez vs. Club Tijuana",
-        "top_outcome": "0"
+        "title": "Sentio FDV above ___ one day after launch?",
+        "top_outcome": "["
       },
       {
         "title": "BNB Up or Down - March 15, 5:00AM-5:15AM ET",
@@ -27,6 +23,10 @@
       },
       {
         "title": "Will Trump try to acquire part of Alberta?",
+        "top_outcome": "["
+      },
+      {
+        "title": "Counter-Strike: ARCRED vs 5Actors (BO3) - CIS LAN Championship Group D",
         "top_outcome": "["
       }
     ]
