@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宏观对冲战情室 (数据基座版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(51, 65, 85, 0.8); }
+        .offline-stripes {
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-6 flex flex-col gap-6">
+
+    <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+        <h1 class="text-2xl font-bold flex items-center gap-2 text-blue-400">
+            <i data-lucide="database"></i> 宏观底牌监控台
+        </h1>
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 text-xs font-mono bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded">
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                归档系统: 运行中
+            </div>
+            <div id="update-time" class="text-sm font-mono text-slate-400 bg-slate-800 px-3 py-1.5 rounded">加载中...</div>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="metrics-container">
+        </div>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <section class="glass p-5 rounded-xl flex flex-col gap-4">
+            <h2 class="text-lg font-bold flex items-center gap-2 text-blue-400 border-b border-slate-700 pb-2">
+                <i data-lucide="bar-chart"></i> 宏观大事件博弈池 (Polymarket)
+            </h2>
+            <div id="poly-container" class="space-y-4 overflow-y-auto max-h-[500px] pr-2">加载中...</div>
+        </section>
+
+        <section class="glass p-5 rounded-xl flex flex-col gap-4 offline-stripes">
+            <h2 class="text-lg font-bold flex items-center gap-2 text-slate-500 border-b border-slate-700 pb-2">
+                <i data-lucide="cpu"></i> AI 投资传导链条
+            </h2>
+            <div class="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-700 rounded-lg">
+                <i data-lucide="plug" class="w-12 h-12 text-slate-600 mb-3"></i>
+                <h3 class="text-slate-400 font-bold mb-1">推理引擎接口预留</h3>
+                <p class="text-xs text-slate-500">此模块等待 LLM (Gemini/DeepSeek) 接入<br/>当前系统仅运行数据采集模式</p>
+                <button class="mt-4 text-xs bg-slate-800 border border-slate-600 px-3 py-1.5 rounded text-slate-400 cursor-not-allowed">
+                    未激活
+                </button>
+            </div>
+        </section>
+
+        <section class="glass p-5 rounded-xl flex flex-col gap-4 border-t-2 border-slate-700 offline-stripes">
+            <h2 class="text-lg font-bold flex items-center gap-2 text-slate-500 border-b border-slate-700 pb-2">
+                <i data-lucide="zap"></i> 非对称执行策略
+            </h2>
+            <div class="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-700 rounded-lg">
+                <i data-lucide="lock" class="w-12 h-12 text-slate-600 mb-3"></i>
+                <h3 class="text-slate-400 font-bold mb-1">策略生成器离线</h3>
+                <p class="text-xs text-slate-500">依赖 AI 链条分析进行 Gamma 策略匹配</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        async function loadData() {
+            try {
+                // 读取本地归档的 latest.json
+                const response = await fetch('./database/latest.json?t=' + new Date().getTime());
+                const data = await response.json();
+                
+                document.getElementById('update-time').innerText = "最后抓取: " + data.timestamp;
+
+                // 1. 渲染微观指标
+                const metrics = data.raw_data.metrics;
+                document.getElementById('metrics-container').innerHTML = `
+                    <div class="glass p-4 rounded-xl border-l-4 border-amber-500">
+                        <div class="text-slate-400 text-sm">VIX (波动率)</div>
+                        <div class="text-2xl font-bold font-mono text-amber-400">${metrics.vix.toFixed(2)}</div>
+                    </div>
+                    <div class="glass p-4 rounded-xl border-l-4 border-purple-500">
+                        <div class="text-slate-400 text-sm">SKEW (黑天鹅偏度)</div>
+                        <div class="text-2xl font-bold font-mono text-purple-400">${metrics.skew.toFixed(2)}</div>
+                    </div>
+                    <div class="glass p-4 rounded-xl border-l-4 border-red-500">
+                        <div class="text-slate-400 text-sm">GEX (做市商Gamma)</div>
+                        <div class="text-2xl font-bold font-mono text-red-400">${(metrics.gex / 1e9).toFixed(2)}B</div>
+                    </div>
+                    <div class="glass p-4 rounded-xl border-l-4 border-blue-500">
+                        <div class="text-slate-400 text-sm">DIX (暗池买盘)</div>
+                        <div class="text-2xl font-bold font-mono text-blue-400">${(metrics.dix * 100).toFixed(1)}%</div>
+                    </div>
+                `;
+
+                // 2. 渲染 Polymarket 事件 (宏观大事发令枪)
+                const poly = data.raw_data.polymarket;
+                let polyHtml = '';
+                poly.forEach(item => {
+                    let prob = (parseFloat(item.top_outcome) * 100).toFixed(1);
+                    polyHtml += `
+                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700 hover:border-blue-500/50 transition-colors">
+                            <div class="text-sm font-medium mb-2 text-slate-200">${item.title}</div>
+                            <div class="flex justify-between items-center text-xs font-mono">
+                                <span class="text-slate-400">主流资金押注胜率:</span>
+                                <span class="text-blue-400 font-bold bg-blue-900/30 px-2 py-1 rounded">${prob}%</span>
+                            </div>
+                            <div class="w-full bg-slate-900 rounded-full h-1 mt-2">
+                                <div class="bg-blue-500 h-1 rounded-full" style="width: ${prob}%"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                document.getElementById('poly-container').innerHTML = polyHtml;
+
+                // AI 模块因为目前是 null，所以我们保留在 HTML 里写死的 "未激活" 占位符不变
+
+                lucide.createIcons();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('metrics-container').innerHTML = '<div class="text-red-400 col-span-4 p-4 glass rounded border-red-500">读取 database/latest.json 失败。请确保你已经运行了 engine.py。</div>';
+            }
+        }
+        
+        loadData();
+    </script>
+</body>
+</html>
