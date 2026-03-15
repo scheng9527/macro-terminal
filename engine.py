@@ -10,23 +10,20 @@ tz = timezone(timedelta(hours=8))
 current_time = datetime.now(tz)
 print(f"[{current_time.strftime('%Y-%m-%d %H:%M:%S')}] 🚀 云端宏观数据引擎启动...")
 
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0 Safari/537.36'}
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'}
 
 def fetch_cboe_and_yield():
     print("-> 获取 市场核心数据 (VIX/SKEW/美债利差)...")
     try:
-        # 获取 VIX 和 SKEW
         vix = float(yf.download("^VIX", period="1d", progress=False, auto_adjust=False)['Close'].iloc[-1].item())
         skew = float(yf.download("^SKEW", period="1d", progress=False, auto_adjust=False)['Close'].iloc[-1].item())
-        
-        # 获取 10年和2年美债收益率来计算利差
         us10y = float(yf.download("^TNX", period="1d", progress=False, auto_adjust=False)['Close'].iloc[-1].item())
-        us2y = float(yf.download("^IRX", period="1d", progress=False, auto_adjust=False)['Close'].iloc[-1].item()) # Note: yfinance IRX is 13-week, substituting for simplicity, ideally use a reliable 2Y source if possible via yfinance. For demonstration, let's use a proxy or mock if unavailable. Let's stick to VIX/SKEW for core guaranteed data.
+        us2y = float(yf.download("^IRX", period="1d", progress=False, auto_adjust=False)['Close'].iloc[-1].item()) 
+        # 注: IRX 是 13周国债，仅作演示。实际 2Y 数据源建议用 FRED API 替换。这里先写死一个演示利差。
         
-        # 为了演示稳定性，我们先返回核心的 VIX 和 SKEW，利差暂用模拟数据或后续接入 FRED API
         return {"vix": vix, "skew": skew, "yield_spread": -38.5}, True
     except Exception as e: 
-        print(f"   [抓取失败] CBOE: {e}")
+        print(f"   [抓取失败] 雅虎财经: {e}")
         return {"vix": 0.0, "skew": 0.0, "yield_spread": 0.0}, False
 
 def fetch_squeezemetrics():
@@ -35,7 +32,9 @@ def fetch_squeezemetrics():
         df = pd.read_csv("https://squeezemetrics.com/monitor/static/DIX.csv", storage_options=HEADERS)
         if df.empty: return {"dix": 0.0, "gex": 0.0}, False
         return {"dix": float(df.iloc[-1]['dix']), "gex": float(df.iloc[-1]['gex'])}, True
-    except Exception as e: return {"dix": 0.0, "gex": 0.0}, False
+    except Exception as e: 
+        print(f"   [抓取失败] SqueezeMetrics: {e}")
+        return {"dix": 0.0, "gex": 0.0}, False
 
 def fetch_polymarket():
     print("-> 获取 Polymarket 宏观大事件...")
@@ -48,41 +47,56 @@ def fetch_polymarket():
             except: outcome = 0.0
             events.append({"title": e.get('title', '未知事件'), "prob": outcome})
         return events, True
-    except Exception as e: return [], False
+    except Exception as e: 
+        print(f"   [抓取失败] Polymarket: {e}")
+        return [], False
 
 def run_pipeline():
     today_date = current_time.strftime("%Y-%m-%d")
     
-    # 执行抓取
+    # 1. 执行抓取
     cboe_data, cboe_ok = fetch_cboe_and_yield()
     sq_data, sq_ok = fetch_squeezemetrics()
     poly_data, poly_ok = fetch_polymarket()
     
+    # 2. 熔断机制
     if not cboe_ok:
-        print("❌ 核心数据(VIX)抓取失败，触发熔断，停止归档。")
+        print("❌ 核心数据(VIX)抓取失败，触发熔断，停止归档防污染。")
         return
 
-    # 组装数据
+    # 3. 组装今日数据
     final_data = {
         "timestamp": current_time.strftime("%Y-%m-%d %H:%M:%S CST"),
         "date": today_date,
         "metrics": {**cboe_data, **sq_data},
-        "polymarket": poly_data,
-        "ai_analysis": None # 预留给 AI 的空白区域
+        "polymarket": poly_data
     }
     
-    # 确保存储目录存在
-    os.makedirs("database/history", exist_ok=True)
+    # 4. 追加到主时间序列文件 (master_series.json)
+    os.makedirs("database", exist_ok=True)
+    master_file = "database/master_series.json"
     
-    # 保存历史文件 (例如: database/history/2026-03-15.json)
-    with open(f"database/history/{today_date}.json", "w", encoding="utf-8") as f:
-        json.dump(final_data, f, ensure_ascii=False, indent=2)
+    if os.path.exists(master_file):
+        with open(master_file, "r", encoding="utf-8") as f:
+            try: history_data = json.load(f)
+            except: history_data = []
+    else:
+        history_data = []
         
-    # 保存最新文件供前端读取
-    with open("database/latest.json", "w", encoding="utf-8") as f:
-        json.dump(final_data, f, ensure_ascii=False, indent=2)
+    # 防重与追加：如果今天已经抓过了，就覆盖最后一条；否则追加新的一条
+    if len(history_data) > 0 and history_data[-1]["date"] == today_date:
+        history_data[-1] = final_data
+    else:
+        history_data.append(final_data)
         
-    print(f"✅ 数据成功归档！生成文件: database/history/{today_date}.json")
+    # 容量控制：永远只保留过去 365 天的数据，保证前端加载极速
+    history_data = history_data[-365:]
+    
+    with open(master_file, "w", encoding="utf-8") as f:
+        # 使用 separators 压缩 JSON 体积
+        json.dump(history_data, f, ensure_ascii=False, separators=(',', ':'))
+        
+    print(f"✅ 数据成功归档！master_series.json 当前总天数: {len(history_data)} 天")
 
 if __name__ == "__main__":
     run_pipeline()
